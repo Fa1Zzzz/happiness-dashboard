@@ -231,19 +231,6 @@ def single_color_bar(df, x, y, orientation="v", title=""):
 # ------------------ Main Title + Overview ------------------
 st.title("How Well Is the World Doing? 🌍🤔")
 
-st.markdown(
-    """
-    ### About This Dashboard
-    This interactive dashboard explores how **happiness levels** around the world relate to:
-    - **Health and life expectancy**
-    - **Economic conditions**
-    - **Environmental and nutrition factors**
-    - **Global peace and stability**
-
-    Use the filters in the sidebar to focus on specific regions or income groups,
-    and read the insight under each chart to understand what the comparison shows and why it matters.
-    """
-)
 
 # ------------------ Tabs ------------------
 tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_insights, tab_tables = st.tabs(
@@ -259,6 +246,20 @@ tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_insights, tab_tabl
 )
 # ========== TAB 1: OVERVIEW ==========
 with tab_overview:
+    st.markdown(
+        """
+        ### About This Dashboard
+        This interactive dashboard explores how **happiness levels** around the world relate to:
+        - **Health and life expectancy**
+        - **Economic conditions**
+        - **Environmental and nutrition factors**
+        - **Global peace and stability**
+
+        Use the filters in the sidebar to focus on specific regions or income groups,
+        and read the insight under each chart to understand what the comparison shows and why it matters.
+        """
+    )
+
     st.subheader("Global Overview")
 
     col1, col2, col3 = st.columns(3)
@@ -702,3 +703,4 @@ with tab_tables:
 
     st.markdown("### Merged Dataset (All Combined)")
     st.dataframe(merged_df)
+
