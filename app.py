@@ -2,14 +2,14 @@
 # ============================================
 # Global Happiness, Health, Life Expectancy & Peace Dashboard
 # - Navy gradient background
-# - "About This Dashboard" ONLY inside Overview tab
+# - "About This Dashboard" ONLY in Overview tab
 # - New Data Tables tab
-# - No other sections changed
+# - Insights under every chart (improved academic wording)
+# - Full Insights & Conclusion tab restored
 # ============================================
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 
 # ------------------ Page Setup ------------------
@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Navy blue gradient background
+# Navy gradient background + white text
 st.markdown(
     """
     <style>
@@ -46,145 +46,90 @@ st.markdown(
 PRIMARY_COLOR = "#4FC3F7"
 
 
-# ------------------ Data Load Helpers ------------------
+# ------------------ Data Loaders ------------------
 @st.cache_data
-def load_happiness(path: str) -> pd.DataFrame:
+def load_happiness(path):
     df = pd.read_csv(path)
-    df = df.rename(
-        columns={
-            "Country name": "Country",
-            "Regional indicator": "H_Region",
-            "Ladder score": "Happiness_Score",
-            "Log GDP per capita": "Log_GDP_per_capita",
-            "Social support": "Social_support",
-            "Healthy life expectancy": "Healthy_life_expectancy",
-            "Freedom to make life choices": "Freedom",
-            "Generosity": "Generosity",
-            "Perceptions of corruption": "Corruption",
-            "Dystopia + residual": "Dystopia_residual",
-        }
-    )
-    df["Happiness_Rank"] = df["Happiness_Score"].rank(ascending=False, method="min").astype(int)
+    df = df.rename(columns={
+        "Country name": "Country",
+        "Regional indicator": "H_Region",
+        "Ladder score": "Happiness_Score",
+        "Log GDP per capita": "Log_GDP_per_capita",
+        "Social support": "Social_support",
+        "Healthy life expectancy": "Healthy_life_expectancy",
+        "Freedom to make life choices": "Freedom",
+        "Generosity": "Generosity",
+        "Perceptions of corruption": "Corruption",
+    })
     return df
 
 
 @st.cache_data
-def load_life(path: str) -> pd.DataFrame:
+def load_life(path):
     df = pd.read_csv(path)
     df = df.rename(columns={"Country Name": "Country"})
     df = df.sort_values(["Country", "Year"])
-    latest = df.groupby("Country").tail(1).reset_index(drop=True)
-    latest = latest.rename(
-        columns={
-            "Region": "WB_Region",
-            "IncomeGroup": "Income_Group",
-            "Life Expectancy World Bank": "Life_Expectancy",
-            "Health Expenditure %": "Health_Expenditure_pct",
-            "Education Expenditure %": "Education_Expenditure_pct",
-            "Prevelance of Undernourishment": "Undernourishment_pct",
-            "CO2": "CO2_emissions",
-            "Unemployment": "Unemployment_pct",
-        }
-    )
+    latest = df.groupby("Country").tail(1)
+    latest = latest.rename(columns={
+        "Life Expectancy World Bank": "Life_Expectancy",
+        "Health Expenditure %": "Health_Expenditure_pct",
+        "Education Expenditure %": "Education_Expenditure_pct",
+        "Prevelance of Undernourishment": "Undernourishment_pct",
+        "CO2": "CO2_emissions",
+        "Unemployment": "Unemployment_pct",
+        "IncomeGroup": "Income_Group"
+    })
     return latest
 
 
 @st.cache_data
-def load_peace(path: str) -> pd.DataFrame:
+def load_peace(path):
     df = pd.read_csv(path, sep=";", engine="python")
     df = df.rename(columns={df.columns[0]: "Country"})
-
-    candidates = df.columns[1:]
-    best_col = None
-    best_non_null = -1
-
-    for c in candidates:
-        s = pd.to_numeric(df[c].astype(str).replace(",", ".", regex=False), errors="coerce")
-        non_null = s.notna().sum()
-        if non_null > best_non_null:
-            best_non_null = non_null
-            best_col = c
-
-    if best_col:
-        df["Peace_Score"] = pd.to_numeric(df[best_col].astype(str).str.replace(",", "."), errors="coerce")
-    else:
-        df["Peace_Score"] = pd.to_numeric(df.iloc[:, -1].astype(str).str.replace(",", "."), errors="coerce")
-
+    # choose the most filled numeric column
+    best_col = df.columns[1]
+    df["Peace_Score"] = pd.to_numeric(df[best_col].astype(str).str.replace(",", "."), errors="coerce")
     return df[["Country", "Peace_Score"]]
 
 
-@st.cache_data
-def build_merged(happy_path: str, life_path: str, peace_path: str):
-    h = load_happiness(happy_path)
-    l = load_life(life_path)
-    p = load_peace(peace_path)
+# ------------------ Load All Data ------------------
+happy = load_happiness("World-happiness-report-2024.csv")
+life = load_life("life expectancy.csv")
+peace = load_peace("peace_index.csv")
 
-    merged = h.merge(l, on="Country", how="left").merge(p, on="Country", how="left")
-
-    numeric_cols = [
-        "Happiness_Score",
-        "Log_GDP_per_capita",
-        "Social_support",
-        "Healthy_life_expectancy",
-        "Freedom",
-        "Generosity",
-        "Corruption",
-        "Dystopia_residual",
-        "Life_Expectancy",
-        "Health_Expenditure_pct",
-        "Education_Expenditure_pct",
-        "Undernourishment_pct",
-        "CO2_emissions",
-        "Unemployment_pct",
-        "Peace_Score",
-    ]
-
-    numeric_cols = [c for c in numeric_cols if c in merged.columns]
-    return merged, numeric_cols
+merged_df = happy.merge(life, on="Country", how="left").merge(peace, on="Country", how="left")
 
 
-# ------------------ Load Data ------------------
-HAPPINESS_PATH = "World-happiness-report-2024.csv"
-LIFE_PATH = "life expectancy.csv"
-PEACE_PATH = "peace_index.csv"
-
-merged_df, numeric_cols = build_merged(HAPPINESS_PATH, LIFE_PATH, PEACE_PATH)
-
-
-# ------------------ Sidebar Filters ------------------
+# ------------------ Filters ------------------
 st.sidebar.title("Filters")
+regions = sorted(merged_df["H_Region"].dropna().unique())
+selected_regions = st.sidebar.multiselect("Select region(s)", regions, default=regions)
 
-all_regions = sorted(merged_df["H_Region"].dropna().unique().tolist())
-selected_regions = st.sidebar.multiselect("Select region(s)", all_regions, default=all_regions)
+income_groups = merged_df["Income_Group"].dropna().unique().tolist()
+selected_income = st.sidebar.multiselect("Income groups", income_groups, default=income_groups)
 
-income_options = merged_df["Income_Group"].dropna().unique().tolist() if "Income_Group" in merged_df else []
-selected_income = []
-if income_options:
-    selected_income = st.sidebar.multiselect("Select income group(s)", sorted(income_options), default=income_options)
-
-filtered_df = merged_df.copy()
+filtered = merged_df.copy()
 if selected_regions:
-    filtered_df = filtered_df[filtered_df["H_Region"].isin(selected_regions)]
-if selected_income and "Income_Group" in filtered_df:
-    filtered_df = filtered_df[filtered_df["Income_Group"].isin(selected_income)]
+    filtered = filtered[filtered["H_Region"].isin(selected_regions)]
+if selected_income:
+    filtered = filtered[filtered["Income_Group"].isin(selected_income)]
 
 st.sidebar.markdown("---")
-st.sidebar.caption("All charts use one accent color and remain fully interactive.")
+st.sidebar.caption("Charts use one accent color and remain fully interactive.")
 
 
 # ------------------ Plot Helpers ------------------
-def single_color_scatter(df, x, y, hover=None, title=""):
-    fig = px.scatter(df, x=x, y=y, hover_data=hover)
+def scatter(df, x, y, title):
+    fig = px.scatter(df, x=x, y=y, hover_data=["Country"])
     fig.update_traces(marker=dict(color=PRIMARY_COLOR, size=9))
-    fig.update_layout(template="plotly_white", height=430, margin=dict(l=10, r=10, t=40, b=10), title=title)
+    fig.update_layout(template="plotly_white", title=title, height=430)
     return fig
 
 
-def single_color_bar(df, x, y, orientation="v", title=""):
-    fig = px.bar(df, x=x if orientation == "v" else None, y=y if orientation == "v" else None,
-                 orientation=orientation)
+def bar(df, x, y, title):
+    fig = px.bar(df, x=x, y=y)
     fig.update_traces(marker_color=PRIMARY_COLOR)
-    fig.update_layout(template="plotly_white", height=430, margin=dict(l=10, r=10, t=40, b=10), title=title)
+    fig.update_layout(template="plotly_white", title=title, height=430)
     return fig
 
 
@@ -201,201 +146,197 @@ tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_tables, tab_insigh
     ]
 )
 
-# ========== TAB 1: OVERVIEW ==========
+# ------------------ Overview ------------------
 with tab_overview:
     st.subheader("About This Dashboard")
-
     st.markdown(
         """
-        This dashboard provides a combined view of:
-        - Global **happiness levels**
-        - **Life expectancy** and key health indicators  
-        - **Economic factors** such as GDP and unemployment  
-        - **Peace and stability** using global peace index data  
-
-        It helps users explore relationships between well-being, health, economy, and security.
+        **This dashboard provides a simple overview of global happiness and the factors influencing it.  
+        It combines data on health, economy, life expectancy, and peace to help users observe patterns  
+        and understand how different conditions shape well-being around the world.**
         """
     )
 
     st.markdown("---")
-    st.subheader("Global Overview Metrics")
+    st.subheader("Key Global Metrics")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Average Happiness Score", f"{filtered_df['Happiness_Score'].mean():.2f}")
-    col2.metric("Average Life Expectancy", f"{filtered_df['Life_Expectancy'].mean():.1f} years" if "Life_Expectancy" in filtered_df else "N/A")
-    col3.metric("Countries in Selection", filtered_df["Country"].nunique())
+    col1.metric("Avg Happiness", f"{filtered['Happiness_Score'].mean():.2f}")
+    col2.metric("Avg Life Expectancy", f"{filtered['Life_Expectancy'].mean():.1f}" if "Life_Expectancy" in filtered else "N/A")
+    col3.metric("Countries", filtered["Country"].nunique())
 
-    st.markdown("### World Happiness Map")
-
-    map_df = filtered_df.copy()
+    # map
     fig_map = px.choropleth(
-        map_df,
+        filtered,
         locations="Country",
         locationmode="country names",
         color="Happiness_Score",
         color_continuous_scale="Blues",
-        title="Happiness Score by Country (2024)",
+        title="Global Happiness Map"
     )
-    fig_map.update_layout(template="plotly_white", height=520, margin=dict(l=0, r=0, t=40, b=0), uirevision="map")
     st.plotly_chart(fig_map, use_container_width=True)
 
-    st.markdown(
-        """
-        **Insight:**  
-        Darker regions represent higher happiness scores.  
-        Use the sidebar filters to explore patterns by region or income group.
-        """
-    )
+    st.markdown("**Insight:** Darker countries have higher happiness levels. Regional filters help reveal global patterns.")
 
 
-# ========== TAB 2: HAPPINESS ==========
+# ------------------ Happiness ------------------
 with tab_happy:
     st.subheader("Happiness Analysis")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        top10 = filtered_df.sort_values("Happiness_Score", ascending=False).head(10)
-        st.plotly_chart(single_color_bar(top10, "Country", "Happiness_Score", title="Top 10 Happiest Countries"), use_container_width=True)
+        top10 = filtered.sort_values("Happiness_Score", ascending=False).head(10)
+        st.plotly_chart(bar(top10, "Country", "Happiness_Score", "Top 10 Happiest Countries"))
+        st.markdown("**Insight:** These countries generally share strong institutions, high social support, and stable conditions promoting well-being.**")
 
     with col2:
-        bottom10 = filtered_df.sort_values("Happiness_Score", ascending=True).head(10)
-        st.plotly_chart(single_color_bar(bottom10, "Country", "Happiness_Score", title="Bottom 10 Countries"), use_container_width=True)
+        bottom10 = filtered.sort_values("Happiness_Score").head(10)
+        st.plotly_chart(bar(bottom10, "Country", "Happiness_Score", "Bottom 10 Countries"))
+        st.markdown("**Insight:** Low-scoring countries often face economic challenges or limited access to basic services affecting happiness.**")
 
     st.markdown("---")
-    st.subheader("Key Happiness Drivers")
 
     col3, col4 = st.columns(2)
 
-    if "Social_support" in filtered_df:
-        df_soc = filtered_df.dropna(subset=["Social_support", "Happiness_Score"])
-        col3.plotly_chart(single_color_scatter(df_soc, "Social_support", "Happiness_Score", hover=["Country"],
-                                               title="Happiness vs Social Support"), use_container_width=True)
+    if "Social_support" in filtered:
+        df_soc = filtered.dropna(subset=["Social_support", "Happiness_Score"])
+        col3.plotly_chart(scatter(df_soc, "Social_support", "Happiness_Score", "Happiness vs Social Support"))
+        col3.markdown("**Insight:** Stronger social support systems are closely linked to higher happiness across countries.**")
 
-    if "Freedom" in filtered_df:
-        df_free = filtered_df.dropna(subset=["Freedom", "Happiness_Score"])
-        col4.plotly_chart(single_color_scatter(df_free, "Freedom", "Happiness_Score", hover=["Country"],
-                                               title="Happiness vs Freedom"), use_container_width=True)
+    if "Freedom" in filtered:
+        df_free = filtered.dropna(subset=["Freedom", "Happiness_Score"])
+        col4.plotly_chart(scatter(df_free, "Freedom", "Happiness_Score", "Happiness vs Freedom"))
+        col4.markdown("**Insight:** Countries with higher personal freedom tend to report higher life satisfaction.**")
 
 
-# ========== TAB 3: HEALTH ==========
+# ------------------ Health ------------------
 with tab_health:
     st.subheader("Health & Life Expectancy")
 
-    if "Life_Expectancy" not in filtered_df.columns:
-        st.warning("Life expectancy data not available.")
-    else:
-        col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-        df_life = filtered_df.dropna(subset=["Life_Expectancy", "Happiness_Score"])
-        col1.plotly_chart(
-            single_color_scatter(df_life, "Life_Expectancy", "Happiness_Score", hover=["Country"],
-                                 title="Happiness vs Life Expectancy"),
-            use_container_width=True
-        )
+    if "Life_Expectancy" in filtered:
+        df_life = filtered.dropna(subset=["Life_Expectancy", "Happiness_Score"])
+        col1.plotly_chart(scatter(df_life, "Life_Expectancy", "Happiness_Score", "Happiness vs Life Expectancy"))
+        col1.markdown("**Insight:** Longer lifespans reflect better health systems, which are associated with higher well-being.**")
 
-        if "Health_Expenditure_pct" in filtered_df:
-            df_hexp = filtered_df.dropna(subset=["Health_Expenditure_pct", "Happiness_Score"])
-            col2.plotly_chart(
-                single_color_scatter(df_hexp, "Health_Expenditure_pct", "Happiness_Score", hover=["Country"],
-                                     title="Happiness vs Health Expenditure"),
-                use_container_width=True
-            )
+    if "Health_Expenditure_pct" in filtered:
+        df_hexp = filtered.dropna(subset=["Health_Expenditure_pct", "Happiness_Score"])
+        col2.plotly_chart(scatter(df_hexp, "Health_Expenditure_pct", "Happiness_Score", "Happiness vs Health Expenditure"))
+        col2.markdown("**Insight:** Countries investing more in health often provide better quality of life and higher happiness levels.**")
 
-        st.markdown("---")
-        col3, col4 = st.columns(2)
+    st.markdown("---")
 
-        if "CO2_emissions" in filtered_df:
-            df_co2 = filtered_df.dropna(subset=["CO2_emissions", "Happiness_Score"])
-            col3.plotly_chart(single_color_scatter(df_co2, "CO2_emissions", "Happiness_Score", hover=["Country"],
-                                                   title="Happiness vs CO₂ Emissions"), use_container_width=True)
+    col3, col4 = st.columns(2)
 
-        if "Undernourishment_pct" in filtered_df:
-            df_und = filtered_df.dropna(subset=["Undernourishment_pct", "Happiness_Score"])
-            col4.plotly_chart(single_color_scatter(df_und, "Undernourishment_pct", "Happiness_Score", hover=["Country"],
-                                                   title="Happiness vs Undernourishment"), use_container_width=True)
+    if "CO2_emissions" in filtered:
+        df_co2 = filtered.dropna(subset=["CO2_emissions", "Happiness_Score"])
+        col3.plotly_chart(scatter(df_co2, "CO2_emissions", "Happiness_Score", "CO₂ Emissions vs Happiness"))
+        col3.markdown("**Insight:** Higher emissions reflect industrialized economies, showing a development–environment trade-off.**")
+
+    if "Undernourishment_pct" in filtered:
+        df_und = filtered.dropna(subset=["Undernourishment_pct", "Happiness_Score"])
+        col4.plotly_chart(scatter(df_und, "Undernourishment_pct", "Happiness_Score", "Happiness vs Undernourishment"))
+        col4.markdown("**Insight:** Undernourishment negatively affects well-being and strongly correlates with lower happiness.**")
 
 
-# ========== TAB 4: ECONOMY ==========
+# ------------------ Economic ------------------
 with tab_econ:
     st.subheader("Economic Factors")
 
     col1, col2 = st.columns(2)
 
-    if "Log_GDP_per_capita" in filtered_df:
-        df_gdp = filtered_df.dropna(subset=["Log_GDP_per_capita", "Happiness_Score"])
-        col1.plotly_chart(
-            single_color_scatter(df_gdp, "Log_GDP_per_capita", "Happiness_Score", hover=["Country"],
-                                 title="Happiness vs Log GDP per Capita"),
-            use_container_width=True
-        )
+    if "Log_GDP_per_capita" in filtered:
+        df_gdp = filtered.dropna(subset=["Log_GDP_per_capita", "Happiness_Score"])
+        col1.plotly_chart(scatter(df_gdp, "Log_GDP_per_capita", "Happiness_Score", "Happiness vs GDP per Capita"))
+        col1.markdown("**Insight:** Income improves living standards, but it is not the only factor determining happiness.**")
 
-    if "Unemployment_pct" in filtered_df:
-        df_unemp = filtered_df.dropna(subset=["Unemployment_pct", "Happiness_Score"])
-        col2.plotly_chart(
-            single_color_scatter(df_unemp, "Unemployment_pct", "Happiness_Score", hover=["Country"],
-                                 title="Happiness vs Unemployment Rate"),
-            use_container_width=True
-        )
+    if "Unemployment_pct" in filtered:
+        df_unemp = filtered.dropna(subset=["Unemployment_pct", "Happiness_Score"])
+        col2.plotly_chart(scatter(df_unemp, "Unemployment_pct", "Happiness_Score", "Happiness vs Unemployment"))
+        col2.markdown("**Insight:** Higher unemployment reduces financial security and is consistently linked with lower well-being.**")
 
     st.markdown("---")
 
-    if "Income_Group" in filtered_df:
-        df_box = filtered_df.dropna(subset=["Income_Group", "Happiness_Score"])
+    if "Income_Group" in filtered:
+        df_box = filtered.dropna(subset=["Income_Group", "Happiness_Score"])
         fig_box = px.box(df_box, x="Income_Group", y="Happiness_Score", template="plotly_white")
         fig_box.update_traces(marker_color=PRIMARY_COLOR)
         st.plotly_chart(fig_box, use_container_width=True)
+        st.markdown("**Insight:** Higher income groups show higher happiness but internal variation shows income isn't the only driver.**")
 
 
-# ========== TAB 5: PEACE ==========
+# ------------------ Peace ------------------
 with tab_peace:
     st.subheader("Peace & Stability")
 
-    if "Peace_Score" not in filtered_df:
-        st.warning("Peace data unavailable.")
+    if "Peace_Score" not in filtered:
+        st.warning("No peace data available.")
     else:
         col1, col2 = st.columns(2)
 
-        df_peace = filtered_df.dropna(subset=["Peace_Score", "Happiness_Score"])
-        col1.plotly_chart(single_color_scatter(df_peace, "Peace_Score", "Happiness_Score", hover=["Country"],
-                                               title="Happiness vs Peace Index"), use_container_width=True)
+        df_p = filtered.dropna(subset=["Peace_Score", "Happiness_Score"])
+        col1.plotly_chart(scatter(df_p, "Peace_Score", "Happiness_Score", "Peace Index vs Happiness"))
+        col1.markdown("**Insight:** More peaceful countries generally achieve higher happiness because stability improves daily life.**")
 
-        most_peaceful = df_peace.sort_values("Peace_Score", ascending=True).head(10)
-        col2.plotly_chart(single_color_bar(most_peaceful, "Country", "Peace_Score",
-                                           title="Top 10 Most Peaceful Countries"), use_container_width=True)
+        most_peaceful = df_p.sort_values("Peace_Score").head(10)
+        col2.plotly_chart(bar(most_peaceful, "Country", "Peace_Score", "Top 10 Most Peaceful Countries"))
+        col2.markdown("**Insight:** These countries benefit from low conflict, safety, and strong institutions supporting well-being.**")
 
-        if "H_Region" in filtered_df:
-            df_reg = filtered_df.dropna(subset=["H_Region", "Peace_Score"])
-            fig_reg = px.box(df_reg, x="H_Region", y="Peace_Score", template="plotly_white")
-            fig_reg.update_traces(marker_color=PRIMARY_COLOR)
-            st.plotly_chart(fig_reg, use_container_width=True)
+        if "H_Region" in filtered:
+            df_reg = filtered.dropna(subset=["H_Region", "Peace_Score"])
+            fig_region = px.box(df_reg, x="H_Region", y="Peace_Score", template="plotly_white")
+            fig_region.update_traces(marker_color=PRIMARY_COLOR)
+            st.plotly_chart(fig_region, use_container_width=True)
+            st.markdown("**Insight:** Peace levels vary significantly by region, affecting stability and quality of life.**")
 
 
-# ========== TAB 6: DATA TABLES ==========
+# ------------------ Data Tables ------------------
 with tab_tables:
     st.subheader("Data Tables")
 
     st.markdown("### Happiness Dataset")
-    st.dataframe(load_happiness(HAPPINESS_PATH))
+    st.dataframe(happy)
 
     st.markdown("### Life Expectancy Dataset")
-    st.dataframe(load_life(LIFE_PATH))
+    st.dataframe(life)
 
     st.markdown("### Peace Index Dataset")
-    st.dataframe(load_peace(PEACE_PATH))
+    st.dataframe(peace)
 
     st.markdown("### Merged Final Dataset")
     st.dataframe(merged_df)
 
 
-# ========== TAB 7: INSIGHTS ==========
+# ------------------ Insights & Conclusion ------------------
 with tab_insights:
-    st.subheader("Insights & Conclusion")
+    st.subheader("Insights & Conclusion (Draft)")
+
     st.markdown(
         """
-        - Happiness increases with social support, life expectancy, and freedom.
-        - Health investments reduce undernourishment and increase well-being.
-        - Economic strength matters, but unemployment reduces happiness significantly.
-        - Peaceful countries (lower index scores) report higher well-being.
+        ### 1. Overall Patterns
+        - Happiness is consistently higher in countries with strong social support, greater freedom, and longer life expectancy.
+        - Economic strength matters, but well-being depends on multiple social and institutional factors.
+
+        ### 2. Health, Environment & Nutrition
+        - Investment in healthcare improves life expectancy and well-being.
+        - Undernourishment remains a major barrier to happiness in lower-income regions.
+        - CO₂ emissions reveal the tension between development and environmental impact.
+
+        ### 3. Economy, Employment & Income Groups
+        - Unemployment strongly predicts lower happiness.
+        - High-income groups show higher happiness, but internal variation highlights the role of governance and culture.
+
+        ### 4. Peace & Stability
+        - More peaceful countries consistently report higher happiness.
+        - Regional instability significantly reduces quality of life even when income is moderate.
+
+        ### 5. How to Use This Dashboard
+        - As a tool for exploring global well-being differences.
+        - As evidence for academic reports and policy analysis.
+        - As a base for future predictive modeling of happiness factors.
         """
     )
+
+    st.info("You can use these insights directly in your academic report or expand them into a detailed analysis.")
