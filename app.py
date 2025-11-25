@@ -28,15 +28,19 @@ st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(to bottom, #4A0E23, #701934, #9E2F4C);
+        background: linear-gradient(to bottom, #0A1A2F, #123155, #1C4A80);
     }
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
     .stTabs [data-baseweb="tab"] {
+        color: white !important;
         font-size: 0.95rem;
         font-weight: 600;
+    }
+    h1, h2, h3, h4, h5, h6, p, .metric {
+        color: white !important;
     }
     </style>
     """,
@@ -695,4 +699,5 @@ with tab_insights:
         "You can reuse and adapt these insights in the Discussion and Conclusion sections "
         "of your written report. If you want, I can help you convert them into a polished academic text."
     )
+
 
