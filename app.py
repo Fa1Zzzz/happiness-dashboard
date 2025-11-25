@@ -239,19 +239,22 @@ def single_color_bar(df, x, y, orientation="v", title=""):
 # ------------------ Main Title + Overview ------------------
 st.title("🌍 Global Happiness, Health, Life Expectancy & Peace Dashboard")
 
-st.markdown(
-    """
-    ### Dashboard Overview
-    This interactive dashboard explores how **happiness levels** around the world relate to:
-    - **Health and life expectancy**
-    - **Economic conditions**
-    - **Environmental and nutrition factors**
-    - **Global peace and stability**
+with tab_overview:
+    st.subheader("About This Dashboard")
 
-    Use the filters in the sidebar to focus on specific regions or income groups,
-    and read the insight under each chart to understand what the comparison shows and why it matters.
-    """
-)
+    st.markdown(
+        """
+        This dashboard visually explores how global **happiness**, **health**, 
+        **life expectancy**, **economic conditions**, and **peace levels** 
+        relate to each other.
+
+        You can interact with the filters on the left to focus on specific regions 
+        or income groups, and each chart includes a clear insight to help interpret 
+        the comparison.
+        """
+    )
+
+    st.markdown("---")
 
 
 # ------------------ Tabs ------------------
@@ -699,5 +702,6 @@ with tab_insights:
         "You can reuse and adapt these insights in the Discussion and Conclusion sections "
         "of your written report. If you want, I can help you convert them into a polished academic text."
     )
+
 
 
