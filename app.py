@@ -28,7 +28,7 @@ st.markdown(
     """
     <style>
     .stApp {
-        background: linear-gradient(to bottom, #f5f5f5, #ffffff);
+        background: linear-gradient(to bottom, #4A0E23, #701934, #9E2F4C);
     }
     .block-container {
         padding-top: 2rem;
@@ -42,6 +42,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 PRIMARY_COLOR = "#4FC3F7"  # single accent color
 
@@ -694,3 +695,4 @@ with tab_insights:
         "You can reuse and adapt these insights in the Discussion and Conclusion sections "
         "of your written report. If you want, I can help you convert them into a polished academic text."
     )
+
