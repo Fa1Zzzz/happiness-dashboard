@@ -18,7 +18,7 @@ import plotly.express as px
 
 # ------------------ Page Setup ------------------
 st.set_page_config(
-    page_title="Global Happiness, Health & Peace Dashboard",
+    page_title="How Well Is the World Doing? 🌍🤔",
     page_icon="🌍",
     layout="wide"
 )
@@ -46,7 +46,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 
 PRIMARY_COLOR = "#4FC3F7"  # single accent color
 
@@ -102,20 +101,15 @@ def load_peace(path: str) -> pd.DataFrame:
     and some numeric columns representing yearly scores.
     We pick the most "filled" numeric column as Peace_Score.
     """
-    # Many peace index files are ';'-separated
     df = pd.read_csv(path, sep=';', engine='python')
-
-    # Ensure first column is Country
     df = df.rename(columns={df.columns[0]: "Country"})
 
-    # Try to find the best numeric column for peace score
     candidates = df.columns[1:]
     best_col = None
     best_non_null = -1
 
     for c in candidates:
-        s = pd.to_numeric(df[c].astype(str).str.replace(",", "."),
-                          errors="coerce")
+        s = pd.to_numeric(df[c].astype(str).str.replace(",", "."), errors="coerce")
         non_null = s.notna().sum()
         if non_null > best_non_null:
             best_non_null = non_null
@@ -127,7 +121,6 @@ def load_peace(path: str) -> pd.DataFrame:
             errors="coerce"
         )
     else:
-        # Fallback: last column
         df["Peace_Score"] = pd.to_numeric(
             df.iloc[:, -1].astype(str).str.replace(",", "."),
             errors="coerce"
@@ -171,7 +164,6 @@ LIFE_PATH = "life expectancy.csv"
 PEACE_PATH = "peace_index.csv"
 
 merged_df, numeric_cols = build_merged(HAPPINESS_PATH, LIFE_PATH, PEACE_PATH)
-
 
 # ------------------ Sidebar Filters ------------------
 st.sidebar.title("Filters")
@@ -217,7 +209,7 @@ def single_color_scatter(df, x, y, hover=None, title=""):
         margin=dict(l=10, r=10, t=40, b=10),
     )
     return fig
-
+    
 
 def single_color_bar(df, x, y, orientation="v", title=""):
     fig = px.bar(
@@ -237,11 +229,11 @@ def single_color_bar(df, x, y, orientation="v", title=""):
 
 
 # ------------------ Main Title + Overview ------------------
-st.title("🌍 Global Happiness, Health, Life Expectancy & Peace Dashboard")
+st.title("How Well Is the World Doing? 🌍🤔")
 
 st.markdown(
     """
-    ### Dashboard Overview
+    ### About This Dashboard
     This interactive dashboard explores how **happiness levels** around the world relate to:
     - **Health and life expectancy**
     - **Economic conditions**
@@ -253,9 +245,8 @@ st.markdown(
     """
 )
 
-
 # ------------------ Tabs ------------------
-tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_insights = st.tabs(
+tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_insights, tab_tables = st.tabs(
     [
         "Overview",
         "Happiness",
@@ -263,10 +254,9 @@ tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_insights = st.tabs
         "Economic Factors",
         "Peace & Stability",
         "Insights & Conclusion",
+        "Data Tables",
     ]
 )
-
-
 # ========== TAB 1: OVERVIEW ==========
 with tab_overview:
     st.subheader("Global Overview")
@@ -293,7 +283,6 @@ with tab_overview:
 
     st.markdown("### World Happiness Map")
 
-    # Stable-ish map (layout preserved via uirevision; hover still interactive)
     map_df = filtered_df.copy()
     fig_map = px.choropleth(
         map_df,
@@ -575,8 +564,6 @@ with tab_econ:
             but also that income alone cannot explain all differences in well-being.
             """
         )
-
-
 # ========== TAB 5: PEACE & STABILITY ==========
 with tab_peace:
     st.subheader("Peace & Stability (Global Peace Index)")
@@ -586,7 +573,6 @@ with tab_peace:
     else:
         col1, col2 = st.columns(2)
 
-        # Note: in many peace indices, lower score = more peaceful
         with col1:
             df_peace = filtered_df.dropna(subset=["Peace_Score", "Happiness_Score"])
             fig_peace_happy = single_color_scatter(
@@ -608,7 +594,6 @@ with tab_peace:
             )
 
         with col2:
-            # Most and least peaceful based on Peace_Score (ascending)
             df_peace_rank = df_peace.copy()
             most_peaceful = df_peace_rank.sort_values("Peace_Score", ascending=True).head(10)
             fig_most_peaceful = single_color_bar(
@@ -700,3 +685,20 @@ with tab_insights:
         "of your written report. If you want, I can help you convert them into a polished academic text."
     )
 
+
+
+# ========== TAB 7: DATA TABLES (NEW TAB) ==========
+with tab_tables:
+    st.subheader("📊 Data Tables")
+
+    st.markdown("### Happiness Dataset")
+    st.dataframe(load_happiness(HAPPINESS_PATH))
+
+    st.markdown("### Life Expectancy Dataset")
+    st.dataframe(load_life(LIFE_PATH))
+
+    st.markdown("### Peace Index Dataset")
+    st.dataframe(load_peace(PEACE_PATH))
+
+    st.markdown("### Merged Dataset (All Combined)")
+    st.dataframe(merged_df)
