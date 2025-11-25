@@ -3,9 +3,9 @@
 # Global Happiness, Health, Life Expectancy & Peace Dashboard
 # - Navy gradient background
 # - "About This Dashboard" ONLY in Overview tab
-# - New Data Tables tab
-# - Insights under every chart (improved academic wording)
-# - Full Insights & Conclusion tab restored
+# - Data Tables tab
+# - Full original insights restored
+# - New dashboard title added above tabs
 # ============================================
 
 import streamlit as st
@@ -45,7 +45,6 @@ st.markdown(
 
 PRIMARY_COLOR = "#4FC3F7"
 
-
 # ------------------ Data Loaders ------------------
 @st.cache_data
 def load_happiness(path):
@@ -62,7 +61,6 @@ def load_happiness(path):
         "Perceptions of corruption": "Corruption",
     })
     return df
-
 
 @st.cache_data
 def load_life(path):
@@ -81,24 +79,19 @@ def load_life(path):
     })
     return latest
 
-
 @st.cache_data
 def load_peace(path):
     df = pd.read_csv(path, sep=";", engine="python")
     df = df.rename(columns={df.columns[0]: "Country"})
-    # choose the most filled numeric column
     best_col = df.columns[1]
     df["Peace_Score"] = pd.to_numeric(df[best_col].astype(str).str.replace(",", "."), errors="coerce")
     return df[["Country", "Peace_Score"]]
 
-
-# ------------------ Load All Data ------------------
+# Load Data
 happy = load_happiness("World-happiness-report-2024.csv")
 life = load_life("life expectancy.csv")
 peace = load_peace("peace_index.csv")
-
 merged_df = happy.merge(life, on="Country", how="left").merge(peace, on="Country", how="left")
-
 
 # ------------------ Filters ------------------
 st.sidebar.title("Filters")
@@ -117,22 +110,8 @@ if selected_income:
 st.sidebar.markdown("---")
 st.sidebar.caption("Charts use one accent color and remain fully interactive.")
 
-
-# ------------------ Plot Helpers ------------------
-def scatter(df, x, y, title):
-    fig = px.scatter(df, x=x, y=y, hover_data=["Country"])
-    fig.update_traces(marker=dict(color=PRIMARY_COLOR, size=9))
-    fig.update_layout(template="plotly_white", title=title, height=430)
-    return fig
-
-
-def bar(df, x, y, title):
-    fig = px.bar(df, x=x, y=y)
-    fig.update_traces(marker_color=PRIMARY_COLOR)
-    fig.update_layout(template="plotly_white", title=title, height=430)
-    return fig
-
-
+# ------------------ Main Title (NEW) ------------------
+st.title("🌍🤔 How Well Is the World Doing?")
 # ------------------ Tabs ------------------
 tab_overview, tab_happy, tab_health, tab_econ, tab_peace, tab_tables, tab_insights = st.tabs(
     [
@@ -165,7 +144,7 @@ with tab_overview:
     col2.metric("Avg Life Expectancy", f"{filtered['Life_Expectancy'].mean():.1f}" if "Life_Expectancy" in filtered else "N/A")
     col3.metric("Countries", filtered["Country"].nunique())
 
-    # map
+    # Stable map
     fig_map = px.choropleth(
         filtered,
         locations="Country",
@@ -176,7 +155,14 @@ with tab_overview:
     )
     st.plotly_chart(fig_map, use_container_width=True)
 
-    st.markdown("**Insight:** Darker countries have higher happiness levels. Regional filters help reveal global patterns.")
+    st.markdown(
+        """
+        **Insight:**  
+        This map compares countries based on their overall **happiness score**.
+        Darker shades indicate higher happiness levels. You can use the sidebar filters
+        to focus on specific regions or income groups and see how the global pattern changes.
+        """
+    )
 
 
 # ------------------ Happiness ------------------
@@ -188,26 +174,56 @@ with tab_happy:
     with col1:
         top10 = filtered.sort_values("Happiness_Score", ascending=False).head(10)
         st.plotly_chart(bar(top10, "Country", "Happiness_Score", "Top 10 Happiest Countries"))
-        st.markdown("**Insight:** These countries generally share strong institutions, high social support, and stable conditions promoting well-being.**")
+        st.markdown(
+            """
+            **Insight:**  
+            This bar chart compares the **10 happiest countries** based on their happiness scores.
+            It highlights which countries consistently appear at the top of global rankings and can be
+            used to explore common patterns between them (e.g., high income, strong social support, stability).
+            """
+        )
 
     with col2:
         bottom10 = filtered.sort_values("Happiness_Score").head(10)
-        st.plotly_chart(bar(bottom10, "Country", "Happiness_Score", "Bottom 10 Countries"))
-        st.markdown("**Insight:** Low-scoring countries often face economic challenges or limited access to basic services affecting happiness.**")
+        st.plotly_chart(bar(bottom10, "Country", "Happiness_Score", "Bottom 10 Countries by Happiness"))
+        st.markdown(
+            """
+            **Insight:**  
+            This chart shows the **10 countries with the lowest happiness scores**.
+            It is useful for identifying where well-being is most at risk and may require
+            targeted policies in areas such as health, income, governance, or security.
+            """
+        )
 
     st.markdown("---")
+    st.markdown("### Key Happiness Drivers")
 
     col3, col4 = st.columns(2)
 
     if "Social_support" in filtered:
         df_soc = filtered.dropna(subset=["Social_support", "Happiness_Score"])
         col3.plotly_chart(scatter(df_soc, "Social_support", "Happiness_Score", "Happiness vs Social Support"))
-        col3.markdown("**Insight:** Stronger social support systems are closely linked to higher happiness across countries.**")
+        st.markdown(
+            """
+            **Insight:**  
+            This scatter plot compares **happiness** with **social support**.
+            Countries where people report stronger social support networks tend
+            to have higher happiness scores, suggesting that friends, family,
+            and community play a central role in well-being.
+            """
+        )
 
     if "Freedom" in filtered:
         df_free = filtered.dropna(subset=["Freedom", "Happiness_Score"])
-        col4.plotly_chart(scatter(df_free, "Freedom", "Happiness_Score", "Happiness vs Freedom"))
-        col4.markdown("**Insight:** Countries with higher personal freedom tend to report higher life satisfaction.**")
+        col4.plotly_chart(scatter(df_free, "Freedom", "Happiness_Score", "Happiness vs Freedom to Make Life Choices"))
+        st.markdown(
+            """
+            **Insight:**  
+            Here, happiness is compared with **freedom to make life choices**.
+            The general pattern shows that people are happier in countries where
+            they feel free to decide about their own lives, careers, and personal paths.
+            """
+        )
 
 
 # ------------------ Health ------------------
@@ -219,12 +235,26 @@ with tab_health:
     if "Life_Expectancy" in filtered:
         df_life = filtered.dropna(subset=["Life_Expectancy", "Happiness_Score"])
         col1.plotly_chart(scatter(df_life, "Life_Expectancy", "Happiness_Score", "Happiness vs Life Expectancy"))
-        col1.markdown("**Insight:** Longer lifespans reflect better health systems, which are associated with higher well-being.**")
+        st.markdown(
+            """
+            **Insight:**  
+            This chart compares **happiness** with **life expectancy**.
+            In many cases, countries where people live longer also report higher happiness,
+            reflecting the role of health systems, living conditions, and overall quality of life.
+            """
+        )
 
     if "Health_Expenditure_pct" in filtered:
         df_hexp = filtered.dropna(subset=["Health_Expenditure_pct", "Happiness_Score"])
-        col2.plotly_chart(scatter(df_hexp, "Health_Expenditure_pct", "Happiness_Score", "Happiness vs Health Expenditure"))
-        col2.markdown("**Insight:** Countries investing more in health often provide better quality of life and higher happiness levels.**")
+        col2.plotly_chart(scatter(df_hexp, "Health_Expenditure_pct", "Happiness_Score", "Happiness vs Health Expenditure (% of GDP)"))
+        st.markdown(
+            """
+            **Insight:**  
+            This comparison shows how **health spending as a percentage of GDP** relates to happiness.
+            Although higher spending does not always guarantee higher happiness, many happier countries
+            invest more in healthcare, which supports better access and outcomes.
+            """
+        )
 
     st.markdown("---")
 
@@ -232,16 +262,28 @@ with tab_health:
 
     if "CO2_emissions" in filtered:
         df_co2 = filtered.dropna(subset=["CO2_emissions", "Happiness_Score"])
-        col3.plotly_chart(scatter(df_co2, "CO2_emissions", "Happiness_Score", "CO₂ Emissions vs Happiness"))
-        col3.markdown("**Insight:** Higher emissions reflect industrialized economies, showing a development–environment trade-off.**")
+        col3.plotly_chart(scatter(df_co2, "CO2_emissions", "Happiness_Score", "Happiness vs CO₂ Emissions"))
+        st.markdown(
+            """
+            **Insight:**  
+            This plot compares **happiness** with **CO₂ emissions**.
+            It can be used to explore whether more industrialized (and often more polluting) countries
+            trade off environmental quality for higher income and reported well-being.
+            """
+        )
 
     if "Undernourishment_pct" in filtered:
         df_und = filtered.dropna(subset=["Undernourishment_pct", "Happiness_Score"])
-        col4.plotly_chart(scatter(df_und, "Undernourishment_pct", "Happiness_Score", "Happiness vs Undernourishment"))
-        col4.markdown("**Insight:** Undernourishment negatively affects well-being and strongly correlates with lower happiness.**")
-
-
-# ------------------ Economic ------------------
+        col4.plotly_chart(scatter(df_und, "Undernourishment_pct", "Happiness_Score", "Happiness vs Undernourishment (%)"))
+        st.markdown(
+            """
+            **Insight:**  
+            Here, happiness is compared with **undernourishment levels**.
+            Countries with higher rates of undernourishment tend to have lower happiness,
+            which highlights how basic needs (food and nutrition) remain fundamental to well-being.
+            """
+        )
+# ------------------ Economic Factors ------------------
 with tab_econ:
     st.subheader("Economic Factors")
 
@@ -249,13 +291,28 @@ with tab_econ:
 
     if "Log_GDP_per_capita" in filtered:
         df_gdp = filtered.dropna(subset=["Log_GDP_per_capita", "Happiness_Score"])
-        col1.plotly_chart(scatter(df_gdp, "Log_GDP_per_capita", "Happiness_Score", "Happiness vs GDP per Capita"))
-        col1.markdown("**Insight:** Income improves living standards, but it is not the only factor determining happiness.**")
+        col1.plotly_chart(scatter(df_gdp, "Log_GDP_per_capita", "Happiness_Score", "Happiness vs Log GDP per Capita"))
+        st.markdown(
+            """
+            **Insight:**  
+            This chart compares **income levels (log GDP per capita)** with happiness.
+            While higher income generally supports better living standards and happiness,
+            the relationship is not perfectly linear, and other social and institutional
+            factors also play a significant role.
+            """
+        )
 
     if "Unemployment_pct" in filtered:
         df_unemp = filtered.dropna(subset=["Unemployment_pct", "Happiness_Score"])
-        col2.plotly_chart(scatter(df_unemp, "Unemployment_pct", "Happiness_Score", "Happiness vs Unemployment"))
-        col2.markdown("**Insight:** Higher unemployment reduces financial security and is consistently linked with lower well-being.**")
+        col2.plotly_chart(scatter(df_unemp, "Unemployment_pct", "Happiness_Score", "Happiness vs Unemployment Rate"))
+        st.markdown(
+            """
+            **Insight:**  
+            This plot compares **unemployment rates** with happiness.
+            Higher unemployment is typically associated with lower happiness, as it affects
+            financial security, social status, and mental health.
+            """
+        )
 
     st.markdown("---")
 
@@ -264,79 +321,116 @@ with tab_econ:
         fig_box = px.box(df_box, x="Income_Group", y="Happiness_Score", template="plotly_white")
         fig_box.update_traces(marker_color=PRIMARY_COLOR)
         st.plotly_chart(fig_box, use_container_width=True)
-        st.markdown("**Insight:** Higher income groups show higher happiness but internal variation shows income isn't the only driver.**")
+        st.markdown(
+            """
+            **Insight:**  
+            This box plot compares **happiness scores across different income groups**.
+            It shows how high-income countries usually report higher happiness on average,
+            but also that income alone cannot explain all differences in well-being.
+            """
+        )
 
 
-# ------------------ Peace ------------------
+# ------------------ Peace & Stability ------------------
 with tab_peace:
-    st.subheader("Peace & Stability")
+    st.subheader("Peace & Stability (Global Peace Index)")
 
     if "Peace_Score" not in filtered:
-        st.warning("No peace data available.")
+        st.warning("Peace index data is not available.")
     else:
         col1, col2 = st.columns(2)
 
         df_p = filtered.dropna(subset=["Peace_Score", "Happiness_Score"])
-        col1.plotly_chart(scatter(df_p, "Peace_Score", "Happiness_Score", "Peace Index vs Happiness"))
-        col1.markdown("**Insight:** More peaceful countries generally achieve higher happiness because stability improves daily life.**")
+        col1.plotly_chart(scatter(df_p, "Peace_Score", "Happiness_Score", "Happiness vs Peace Index Score"))
+        st.markdown(
+            """
+            **Insight:**  
+            This chart compares **happiness** with a **peace index score**.
+            In many peace indices, a **lower score means more peace**.
+            The relationship helps illustrate how safety, conflict levels, and stability
+            are connected to how people feel about their lives.
+            """
+        )
 
-        most_peaceful = df_p.sort_values("Peace_Score").head(10)
-        col2.plotly_chart(bar(most_peaceful, "Country", "Peace_Score", "Top 10 Most Peaceful Countries"))
-        col2.markdown("**Insight:** These countries benefit from low conflict, safety, and strong institutions supporting well-being.**")
+        most_peaceful = df_p.sort_values("Peace_Score", ascending=True).head(10)
+        col2.plotly_chart(bar(most_peaceful, "Country", "Peace_Score", "Top 10 Most Peaceful Countries (Lower Score = More Peace)"))
+        st.markdown(
+            """
+            **Insight:**  
+            This bar chart shows the **10 most peaceful countries** according to the peace index.
+            It is useful for identifying countries that combine stability, low conflict, and often
+            higher levels of happiness and human development.
+            """
+        )
+
+        st.markdown("---")
 
         if "H_Region" in filtered:
             df_reg = filtered.dropna(subset=["H_Region", "Peace_Score"])
             fig_region = px.box(df_reg, x="H_Region", y="Peace_Score", template="plotly_white")
             fig_region.update_traces(marker_color=PRIMARY_COLOR)
             st.plotly_chart(fig_region, use_container_width=True)
-            st.markdown("**Insight:** Peace levels vary significantly by region, affecting stability and quality of life.**")
+            st.markdown(
+                """
+                **Insight:**  
+                This box plot compares **peace scores across regions**.
+                It helps reveal which regions are generally more stable and which face higher
+                levels of conflict or insecurity, providing context for differences in happiness.
+                """
+            )
 
 
 # ------------------ Data Tables ------------------
 with tab_tables:
-    st.subheader("Data Tables")
+    st.subheader("Raw Data Tables")
 
-    st.markdown("### Happiness Dataset")
+    st.markdown("### • Happiness Dataset")
     st.dataframe(happy)
 
-    st.markdown("### Life Expectancy Dataset")
+    st.markdown("### • Life Expectancy Dataset")
     st.dataframe(life)
 
-    st.markdown("### Peace Index Dataset")
+    st.markdown("### • Peace Index Dataset")
     st.dataframe(peace)
 
-    st.markdown("### Merged Final Dataset")
+    st.markdown("### • Final Merged Dataset")
     st.dataframe(merged_df)
 
 
 # ------------------ Insights & Conclusion ------------------
 with tab_insights:
-    st.subheader("Insights & Conclusion (Draft)")
+    st.subheader("Insights & Conclusion (Full Version)")
 
     st.markdown(
         """
-        ### 1. Overall Patterns
-        - Happiness is consistently higher in countries with strong social support, greater freedom, and longer life expectancy.
-        - Economic strength matters, but well-being depends on multiple social and institutional factors.
+        ### **1. Overall Patterns**
+        - **Happiness** tends to be higher in countries with:
+          - Strong **social support**
+          - Greater **freedom to make life choices**
+          - Higher **life expectancy**
+        - **Income** plays a role, but it is not the only driver of well-being.
 
-        ### 2. Health, Environment & Nutrition
-        - Investment in healthcare improves life expectancy and well-being.
-        - Undernourishment remains a major barrier to happiness in lower-income regions.
-        - CO₂ emissions reveal the tension between development and environmental impact.
+        ### **2. Health, Environment & Nutrition**
+        - Countries that invest more in **healthcare** often show both higher life expectancy and higher happiness.
+        - **Undernourishment** and poor nutritional conditions are linked with lower happiness scores.
+        - **CO₂ emissions** highlight a potential trade-off between industrialization, income, and environmental quality.
 
-        ### 3. Economy, Employment & Income Groups
-        - Unemployment strongly predicts lower happiness.
-        - High-income groups show higher happiness, but internal variation highlights the role of governance and culture.
+        ### **3. Economic Factors**
+        - **Unemployment** is a consistent risk factor for lower happiness.
+        - High-income countries usually report higher happiness on average.
+        - Differences inside each income group show the importance of **institutions, governance, and culture**.
 
-        ### 4. Peace & Stability
-        - More peaceful countries consistently report higher happiness.
-        - Regional instability significantly reduces quality of life even when income is moderate.
+        ### **4. Peace & Stability**
+        - More **peaceful and stable countries** (lower peace index scores) tend to have higher happiness.
+        - Regional comparisons show that conflict and insecurity can significantly reduce well-being.
 
-        ### 5. How to Use This Dashboard
-        - As a tool for exploring global well-being differences.
-        - As evidence for academic reports and policy analysis.
-        - As a base for future predictive modeling of happiness factors.
+        ### **5. How to Use This Dashboard**
+        - As an **exploratory tool** for understanding global well-being.
+        - As **evidence** for academic reports and research.
+        - As a base for **future modeling**, such as predicting happiness from health, economic, and peace indicators.
         """
     )
 
-    st.info("You can use these insights directly in your academic report or expand them into a detailed analysis.")
+    st.info(
+        "You can reuse and adapt these insights in your written report or have me rewrite them in academic style."
+    )
